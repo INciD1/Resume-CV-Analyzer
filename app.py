@@ -17,6 +17,8 @@ import json
 import base64
 from io import BytesIO
 
+import llm_pipeline
+
 # ดาวน์โหลด NLTK data ที่จำเป็น
 nltk.download('punkt', quiet=True)
 nltk.download('stopwords', quiet=True)
@@ -423,6 +425,108 @@ class ResumeAnalyzer:
         
         return skill_scores
     
+    def process_resume_llm(self, file_path):
+        """เหมือน process_resume() แต่ใช้ LLM สกัดโปรไฟล์ (ชื่อ, การศึกษา,
+        ประสบการณ์, ทักษะ) แทน regex + skill list ตายตัว รองรับเรซูเม่ไทย/อังกฤษ
+        และเรซูเม่ที่เขียนทักษะแบบไม่ตรงคำ (เข้าใจ context)."""
+        filename = os.path.basename(file_path)
+        file_ext = filename.rsplit('.', 1)[1].lower()
+
+        if file_ext == 'pdf':
+            raw_text = self.extract_text_from_pdf(file_path)
+        elif file_ext in ['jpg', 'jpeg', 'png']:
+            raw_text = self.extract_text_from_image(file_path)
+        else:
+            print(f"ไม่รองรับนามสกุลไฟล์: {file_ext}")
+            return None
+
+        if not raw_text:
+            print(f"ไม่สามารถอ่านข้อความจาก {filename}")
+            return None
+
+        profile = llm_pipeline.extract_profile(raw_text)
+
+        candidate = {
+            'filename': filename,
+            'name': profile.get('name') or self.extract_name(raw_text),
+            'email': profile.get('email') or self.extract_email(raw_text),
+            'skills': profile.get('skills', []),
+            'skill_count': len(profile.get('skills', [])),
+            'education': profile.get('education', []),
+            'experience': profile.get('experience', []),
+            'total_years_experience': profile.get('total_years_experience', 0),
+            'profile': profile,
+            'text': self.clean_text(raw_text),
+            'raw_text': raw_text,
+        }
+        return candidate
+
+    def process_resumes_from_directory_llm(self, directory_path):
+        """ประมวลผลเรซูเม่ทุกไฟล์ในโฟลเดอร์ด้วย pipeline แบบ LLM
+        ถ้าไฟล์ไหนสกัดด้วย LLM ไม่สำเร็จ (เช่น rate limit) จะ fallback
+        เป็น pipeline เดิม (regex/skill-list) เฉพาะไฟล์นั้นแทน"""
+        self.candidates = []
+
+        for filename in os.listdir(directory_path):
+            if any(filename.lower().endswith(ext) for ext in ALLOWED_EXTENSIONS):
+                file_path = os.path.join(directory_path, filename)
+                try:
+                    candidate = self.process_resume_llm(file_path)
+                except Exception as e:
+                    print(f"LLM extraction ล้มเหลวสำหรับ {filename} ({e}) -> ใช้ pipeline เดิมแทน")
+                    candidate = self.process_resume(file_path)
+                if candidate:
+                    self.candidates.append(candidate)
+
+        print(f"ประมวลผลเรซูเม่ทั้งหมด {len(self.candidates)} ไฟล์ (LLM pipeline)")
+        return self.candidates
+
+    def calculate_llm_scores(self, job_description):
+        """ให้ LLM เทียบโปรไฟล์ผู้สมัครแต่ละคนกับ job description โดยตรง
+        คืนคะแนน + เหตุผลประกอบ (explainability) แทนคะแนนดิบจาก TF-IDF"""
+        if not self.candidates:
+            print("ไม่มีข้อมูลผู้สมัคร โปรดประมวลผลเรซูเม่ก่อน")
+            return []
+
+        results = []
+        for candidate in self.candidates:
+            profile = candidate.get('profile')
+            try:
+                if profile is None:
+                    raise ValueError('no LLM profile for this candidate')
+                evaluation = llm_pipeline.evaluate_match(profile, job_description)
+                results.append({
+                    'candidate': candidate,
+                    'matching_skills': evaluation.get('matched_skills', []),
+                    'missing_skills': evaluation.get('missing_skills', []),
+                    'experience_fit': evaluation.get('experience_fit', ''),
+                    'education_fit': evaluation.get('education_fit', ''),
+                    'reasoning': evaluation.get('reasoning', ''),
+                    'total_score': evaluation.get('score', 0) / 100.0,
+                    'skill_score': evaluation.get('score', 0) / 100.0,
+                    'cosine_similarity': None,
+                })
+            except Exception as e:
+                # เรซูเม่คนนี้ใช้ LLM ประเมินไม่ได้ -> ตกไปใช้คะแนนทักษะแบบเดิม
+                print(f"LLM evaluation ล้มเหลวสำหรับ {candidate.get('filename')} ({e}) -> ใช้คะแนนทักษะแบบเดิม")
+                jd_skills = self.extract_skills(self.clean_text(job_description))
+                matching_skills = set(candidate.get('skills', [])).intersection(set(jd_skills))
+                skill_score = len(matching_skills) / len(jd_skills) if jd_skills else 0
+                results.append({
+                    'candidate': candidate,
+                    'matching_skills': list(matching_skills),
+                    'missing_skills': list(set(jd_skills) - matching_skills),
+                    'experience_fit': '',
+                    'education_fit': '',
+                    'reasoning': 'ไม่สามารถประเมินด้วย LLM ได้ ใช้การเทียบทักษะแบบเดิมแทน',
+                    'total_score': skill_score,
+                    'skill_score': skill_score,
+                    'cosine_similarity': None,
+                })
+
+        results.sort(key=lambda x: x['total_score'], reverse=True)
+        return results
+
     def generate_visualizations(self, results, job_description, session_id):
         if not results:
             print("ไม่มีผลลัพธ์ที่จะแสดง")
@@ -431,22 +535,39 @@ class ResumeAnalyzer:
         visualization_data = {}
     
         # เตรียมข้อมูลสำหรับกราฟแท่ง
+        is_llm_mode = any(r.get('cosine_similarity') is None for r in results)
+
         names = [r['candidate']['name'] for r in results]
         skill_scores = [r['skill_score'] for r in results]
-        similarity_scores = [r['cosine_similarity'] for r in results]
         total_scores = [r['total_score'] for r in results]
-    
-        visualization_data['bar_chart'] = {
-            'labels': names,
-            'datasets': [
-                {'label': 'ทักษะ', 'data': skill_scores},
-                {'label': 'เนื้อหา', 'data': similarity_scores},
-                {'label': 'รวม', 'data': total_scores}
-            ]
-        }
-    
+
+        if is_llm_mode:
+            # โหมด LLM ไม่มี TF-IDF cosine similarity แยกต่างหาก (คะแนนรวมมาจาก
+            # การประเมินของ LLM โดยตรงอยู่แล้ว) เลยแสดงแค่ 2 เส้นแทน 3 เส้น
+            visualization_data['bar_chart'] = {
+                'labels': names,
+                'datasets': [
+                    {'label': 'คะแนนความเหมาะสม (LLM)', 'data': skill_scores},
+                    {'label': 'รวม', 'data': total_scores}
+                ]
+            }
+        else:
+            similarity_scores = [r['cosine_similarity'] for r in results]
+            visualization_data['bar_chart'] = {
+                'labels': names,
+                'datasets': [
+                    {'label': 'ทักษะ', 'data': skill_scores},
+                    {'label': 'เนื้อหา', 'data': similarity_scores},
+                    {'label': 'รวม', 'data': total_scores}
+                ]
+            }
+
         # เตรียมข้อมูลสำหรับ Heatmap
-        jd_skills = self.extract_skills(self.clean_text(job_description))
+        if is_llm_mode:
+            # ใช้ทักษะที่ตรง/ขาดจากผลประเมิน LLM แทน static skill list เดิม
+            jd_skills = sorted({s for r in results for s in (r.get('matching_skills', []) + r.get('missing_skills', []))})
+        else:
+            jd_skills = self.extract_skills(self.clean_text(job_description))
         if jd_skills:
             all_skills = sorted(list(set(jd_skills)))
         
@@ -454,7 +575,9 @@ class ResumeAnalyzer:
                 # สร้างเมทริกซ์ทักษะ
                 skill_matrix = []
                 for result in results:
-                    candidate_skills = result['candidate']['skills']
+                    # โหมด LLM: ใช้ matching_skills ของผลประเมินนั้นๆ ตรงๆ
+                    # โหมดเดิม: ใช้รายการทักษะที่สกัดได้จากเรซูเม่
+                    candidate_skills = result['matching_skills'] if is_llm_mode else result['candidate']['skills']
                     row = []
                     for skill in all_skills:
                         row.append(1 if skill in candidate_skills else 0)
@@ -521,10 +644,16 @@ def upload_file():
         flash('ไม่มีไฟล์ที่ถูกต้อง', 'error')
         return redirect(request.url)
     
-    # ประมวลผลเรซูเม่
+    # ประมวลผลเรซูเม่ -- ใช้ LLM pipeline ถ้ามีการตั้งค่า ANTHROPIC_API_KEY ไว้
+    # (ดู llm_pipeline.py) ไม่งั้น fallback ไปใช้ pipeline เดิม (skill-list + TF-IDF)
+    use_llm = llm_pipeline.is_available()
     analyzer = ResumeAnalyzer()
-    analyzer.process_resumes_from_directory(upload_dir)
-    
+
+    if use_llm:
+        analyzer.process_resumes_from_directory_llm(upload_dir)
+    else:
+        analyzer.process_resumes_from_directory(upload_dir)
+
     if not analyzer.candidates:
         flash('ไม่สามารถวิเคราะห์เรซูเม่ได้', 'error')
         shutil.rmtree(upload_dir)
@@ -532,7 +661,10 @@ def upload_file():
     
     # วิเคราะห์เรซูเม่
     job_description = JOB_DESCRIPTIONS[job_category]
-    results = analyzer.calculate_similarity(job_description)
+    if use_llm:
+        results = analyzer.calculate_llm_scores(job_description)
+    else:
+        results = analyzer.calculate_similarity(job_description)
     
     # สร้างการแสดงผลภาพ
     visualization_files = analyzer.generate_visualizations(results, job_description, session_id)
@@ -541,21 +673,30 @@ def upload_file():
     candidates_data = []
     for i, result in enumerate(results):
         candidate = result['candidate']
-        candidates_data.append({
+        entry = {
             'rank': i + 1,
             'name': candidate['name'],
             'email': candidate['email'],
             'matching_skills': result['matching_skills'],
             'skill_score': round(result['skill_score'] * 100, 2),
-            'content_similarity': round(result['cosine_similarity'] * 100, 2),
+            'content_similarity': round(result['cosine_similarity'] * 100, 2) if result.get('cosine_similarity') is not None else None,
             'total_score': round(result['total_score'] * 100, 2)
-        })
+        }
+        if use_llm:
+            entry.update({
+                'missing_skills': result.get('missing_skills', []),
+                'experience_fit': result.get('experience_fit', ''),
+                'education_fit': result.get('education_fit', ''),
+                'reasoning': result.get('reasoning', ''),
+            })
+        candidates_data.append(entry)
     
     # บันทึกผลลัพธ์ลงไฟล์
     result_data = {
         'job_category': job_category,
         'candidates': candidates_data,
-        'visualization_data': visualization_files
+        'visualization_data': visualization_files,
+        'llm_mode': use_llm
     }
     
     result_file = os.path.join(app.config['RESULTS_FOLDER'], f'{session_id}_results.json')
@@ -605,7 +746,8 @@ def results(session_id):
             candidates=result_data['candidates'],
             session_id=session_id,
             bar_chart_data=bar_chart_data,
-            heatmap_data=heatmap_data
+            heatmap_data=heatmap_data,
+            llm_mode=result_data.get('llm_mode', False)
         )
     except Exception as e:
         print(f"เกิดข้อผิดพลาดในการแสดงผลลัพธ์: {e}")
