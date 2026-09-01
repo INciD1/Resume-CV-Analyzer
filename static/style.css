@@ -1,0 +1,376 @@
+/*
+  Resume Analyzer — "review desk" visual identity.
+
+  Concept: the page reads like a case file sitting on a reviewer's desk —
+  a paper document (the form / the results) on a dark desk background,
+  with an ink-stamp rank marker and ledger-style score bars instead of the
+  default rounded-card-with-soft-shadow kit. One accent (ochre) carries
+  emphasis; green/red are reserved for matched/missing semantics only,
+  never used decoratively.
+*/
+
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+Thai:wght@500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --ink: #232b22;
+  --ink-soft: #384034;
+  --paper: #f2ecdb;
+  --paper-raised: #fbf8ee;
+  --rule: #cbbe9c;
+  --ochre: #a97826;
+  --ochre-deep: #8a6220;
+  --stamp-green: #3f5d3f;
+  --stamp-green-bg: #e7ebe0;
+  --stamp-red: #8b3a2b;
+  --stamp-red-bg: #f2e4de;
+  --text: #2a2517;
+  --text-muted: #756b54;
+  --radius: 3px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  background-color: var(--ink);
+}
+
+body {
+  font-family: 'Sarabun', sans-serif;
+  color: var(--text);
+  padding: 40px 16px;
+}
+
+h1, h2, h3, h4, h5, h6, .display-font {
+  font-family: 'Noto Serif Thai', serif;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+/* ---------- Document shell ---------- */
+
+.doc-shell {
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+.doc-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--paper);
+  color: var(--text);
+  padding: 10px 22px 8px;
+  border-radius: 8px 8px 0 0;
+  font-family: 'Noto Serif Thai', serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-left: 28px;
+  margin-bottom: -1px;
+  position: relative;
+  z-index: 1;
+}
+
+.doc-tab .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ochre);
+  display: inline-block;
+}
+
+.doc-page {
+  background: var(--paper);
+  border-radius: 0 10px 10px 10px;
+  padding: 40px 44px;
+  position: relative;
+}
+
+@media (max-width: 620px) {
+  .doc-page { padding: 30px 22px; }
+}
+
+.doc-header {
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 22px;
+  margin-bottom: 28px;
+}
+
+.doc-header h1 {
+  font-size: 1.9rem;
+  margin: 0 0 8px;
+  color: var(--ink);
+}
+
+.doc-header p {
+  color: var(--text-muted);
+  margin: 0;
+  max-width: 60ch;
+}
+
+.pipeline-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.82rem;
+  padding: 4px 11px;
+  border-radius: 20px;
+  border: 1px solid currentColor;
+  margin-top: 12px;
+}
+
+.pipeline-mark.mode-ai { color: var(--stamp-green); }
+.pipeline-mark.mode-legacy { color: var(--text-muted); }
+
+.pipeline-mark .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor;
+}
+
+/* ---------- Form elements ---------- */
+
+.field-label {
+  font-weight: 600;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.form-select, .form-control {
+  border-radius: var(--radius);
+  border: 1px solid var(--rule);
+  background-color: var(--paper-raised);
+  font-family: 'Sarabun', sans-serif;
+  padding: 10px 14px;
+}
+
+.form-select:focus, .form-control:focus {
+  border-color: var(--ochre);
+  box-shadow: 0 0 0 3px rgba(169, 120, 38, 0.18);
+}
+
+.memo-panel {
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ochre);
+  background: var(--paper-raised);
+  padding: 16px 20px;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  max-height: 280px;
+  overflow-y: auto;
+  font-size: 0.92rem;
+}
+
+.memo-panel pre {
+  font-family: 'Sarabun', sans-serif;
+  white-space: pre-wrap;
+  margin: 0;
+  color: var(--text);
+}
+
+.memo-panel .placeholder {
+  color: var(--text-muted);
+  text-align: center;
+  margin: 0;
+}
+
+.dropzone {
+  border: 1.5px dashed var(--rule);
+  border-radius: var(--radius);
+  padding: 34px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.dropzone:hover, .dropzone.dragging {
+  border-color: var(--ochre);
+  background-color: rgba(169, 120, 38, 0.05);
+}
+
+.dropzone img { opacity: 0.55; }
+
+.dropzone h4 {
+  font-size: 1.05rem;
+  margin: 4px 0 6px;
+}
+
+.dropzone p {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  margin: 0;
+}
+
+.file-manifest { margin-top: 18px; }
+
+.file-manifest h5 {
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  font-family: 'Sarabun', sans-serif;
+  font-weight: 600;
+}
+
+.file-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  padding: 9px 14px;
+  margin-bottom: 6px;
+  background: var(--paper-raised);
+  font-size: 0.9rem;
+}
+
+.file-chip.invalid {
+  border-color: var(--stamp-red);
+  background: var(--stamp-red-bg);
+}
+
+.file-chip .file-size { color: var(--text-muted); margin-left: 8px; }
+
+.file-chip .remove-file {
+  border: none;
+  background: none;
+  color: var(--stamp-red);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.btn-ink {
+  font-family: 'Sarabun', sans-serif;
+  font-weight: 600;
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  border-radius: var(--radius);
+  padding: 12px 34px;
+  font-size: 1rem;
+  transition: background-color 0.15s ease;
+}
+
+.btn-ink:hover:not(:disabled) { background: var(--ochre-deep); color: #fff; }
+.btn-ink:disabled { background: var(--rule); color: var(--text-muted); cursor: not-allowed; }
+
+/* ---------- Alerts (flash messages) ---------- */
+
+.alert-doc {
+  border-radius: var(--radius);
+  border: 1px solid var(--rule);
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  font-size: 0.92rem;
+}
+
+.alert-doc.alert-danger, .alert-doc.alert-error {
+  border-color: var(--stamp-red);
+  background: var(--stamp-red-bg);
+  color: var(--stamp-red);
+}
+
+.alert-doc.alert-warning {
+  border-color: var(--ochre);
+  background: rgba(169, 120, 38, 0.08);
+  color: var(--ochre-deep);
+}
+
+/* ---------- Results page: candidate cards ---------- */
+
+.results-intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.results-intro h3 { margin: 0 0 4px; font-size: 1.2rem; }
+.results-intro p { margin: 0; color: var(--text-muted); font-size: 0.9rem; }
+
+.candidate-card {
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+  padding: 22px 24px;
+  margin-bottom: 16px;
+}
+
+.candidate-card.top-rank {
+  border-color: var(--ochre);
+  box-shadow: inset 3px 0 0 var(--ochre);
+}
+
+.candidate-name { font-family: 'Noto Serif Thai', serif; font-size: 1.15rem; margin: 0; }
+.candidate-email { color: var(--text-muted); font-size: 0.88rem; margin: 2px 0 0; }
+
+.skill-tag-label { font-size: 0.85rem; margin: 14px 0 6px; color: var(--text-muted); }
+
+.skill-tag {
+  display: inline-block;
+  font-size: 0.8rem;
+  padding: 3px 10px;
+  border-radius: 20px;
+  margin: 0 6px 6px 0;
+}
+
+.skill-tag.matched { background: var(--stamp-green-bg); color: var(--stamp-green); border: 1px solid var(--stamp-green); }
+.skill-tag.missing { background: var(--stamp-red-bg); color: var(--stamp-red); border: 1px solid var(--stamp-red); }
+
+.fit-note {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 10px 0 0;
+  line-height: 1.6;
+}
+
+.reasoning-box {
+  border-left: 3px solid var(--ochre);
+  background: rgba(169, 120, 38, 0.06);
+  padding: 10px 14px;
+  margin-top: 12px;
+  font-size: 0.86rem;
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+.reasoning-box strong { color: var(--ink); }
+
+.rank-column { text-align: right; min-width: 130px; }
+
+.rank-stamp {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  color: var(--ink);
+  font-family: 'Noto Serif Thai', serif;
+  font-weight: 700;
+  font-size: 1.15rem;
+  margin-bottom: 10px;
+}
+
+.candidate-card.top-rank .rank-stamp {
+  border-color: var(--ochre);
+  color: var(--ochre);
+}
+
+.score-line { margin: 3px 0; font-size: 0.9rem; color: var(--text-muted); }
+.score-line strong { color: var(--text); font-variant-numeric: tabular-nums; }
+.score-line.score-total strong { color: var(--ink); font-size: 1.05rem; }
+
+/* ---------- Charts / visualization section ---------- */
+
+.viz-section { margin-top: 46px; }
+.viz-section h3 { font-size: 1.15rem; margin-bottom: 18px; }
+.viz-block { margin-bottom: 30px; }
+.viz-block h5 { font-size: 0.95rem; color: var(--text-muted); font-weight: 600; margin-bottom: 10px; }
+
+.chart-container {
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+}
+
+.chart-error { color: var(--stamp-red); }

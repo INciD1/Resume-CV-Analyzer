@@ -74,13 +74,16 @@ document.addEventListener('DOMContentLoaded', function() {
             
             try {
                 // แปลงข้อมูลให้อยู่ในรูปแบบที่เหมาะสม
+                // โหมด AI/LLM ส่งมาแค่ 2 datasets (คะแนนความเหมาะสม + รวม) เพราะไม่มี
+                // "คะแนนเนื้อหา" (TF-IDF) แยกต่างหากเหมือนโหมดพื้นฐาน (3 datasets)
+                const isLlmMode = data.datasets.length < 3;
                 let candidatesData = [];
                 const names = data.labels;
                 
                 for (let i = 0; i < names.length; i++) {
-                    const skillScore = data.datasets[0].data[i] * 100; // ทักษะ
-                    const contentScore = data.datasets[1].data[i] * 100; // เนื้อหา
-                    const totalScore = data.datasets[2].data[i] * 100; // คะแนนรวม
+                    const skillScore = data.datasets[0].data[i] * 100; // ทักษะ / คะแนน AI
+                    const contentScore = isLlmMode ? null : data.datasets[1].data[i] * 100; // เนื้อหา
+                    const totalScore = data.datasets[isLlmMode ? 1 : 2].data[i] * 100; // คะแนนรวม
                     
                     candidatesData.push({
                         name: names[i],
@@ -100,12 +103,14 @@ document.addEventListener('DOMContentLoaded', function() {
                         <div class="legend-container">
                             <div class="legend-item">
                                 <div class="legend-color skill-color"></div>
-                                <span>คะแนนทักษะ</span>
+                                <span>${isLlmMode ? 'คะแนนความเหมาะสม (AI)' : 'คะแนนทักษะ'}</span>
                             </div>
+                            ${isLlmMode ? '' : `
                             <div class="legend-item">
                                 <div class="legend-color content-color"></div>
                                 <span>คะแนนเนื้อหา</span>
                             </div>
+                            `}
                             <div class="legend-item">
                                 <div class="legend-color total-color"></div>
                                 <span>คะแนนรวม</span>
@@ -159,15 +164,16 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                             
                             <div class="scores-container">
-                                <div class="score-label">ทักษะ</div>
+                                <div class="score-label">${isLlmMode ? 'คะแนนความเหมาะสม (AI)' : 'ทักษะ'}</div>
                                 <div class="progress skill-progress" style="height: 25px; margin-bottom: 15px;">
                                     <div class="progress-bar skill-bar" role="progressbar" 
                                         style="width: ${candidate.skillScore}%;" 
                                         aria-valuenow="${candidate.skillScore}" aria-valuemin="0" aria-valuemax="100"
-                                        data-bs-toggle="tooltip" title="คะแนนทักษะ: ${candidate.skillScore.toFixed(1)}%">
+                                        data-bs-toggle="tooltip" title="คะแนน: ${candidate.skillScore.toFixed(1)}%">
                                         <span class="progress-label">${candidate.skillScore.toFixed(1)}%</span>
                                     </div>
                                 </div>
+                                ${isLlmMode ? '' : `
                                 <div class="score-label">เนื้อหา</div>
                                 <div class="progress content-progress" style="height: 25px; margin-bottom: 15px;">
                                     <div class="progress-bar content-bar" role="progressbar" 
@@ -177,6 +183,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                         <span class="progress-label">${candidate.contentScore.toFixed(1)}%</span>
                                     </div>
                                 </div>
+                                `}
                                 
                                 <div class="score-label">คะแนนรวม</div>
                                 <div class="progress total-progress" style="height: 30px; margin-bottom: 15px;">
@@ -332,8 +339,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 y: yLabels,
                 type: 'heatmap',
                 colorscale: [
-                    [0, 'rgb(240, 240, 245)'],  // ไม่มีทักษะ - สีอ่อน
-                    [1, 'rgb(25, 118, 210)']    // มีทักษะ - สีเข้ม
+                    [0, '#fbf8ee'],  // ไม่มีทักษะ - สีกระดาษอ่อน
+                    [1, '#3f5d3f']   // มีทักษะ - เขียวประทับตรา
                 ],
                 showscale: true,
                 colorbar: {
@@ -354,15 +361,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     text: 'การเปรียบเทียบทักษะของผู้สมัคร',
                     font: {
                         size: 20,
-                        color: '#333'
+                        color: '#2a2517',
+                        family: "'Noto Serif Thai', serif"
                     }
                 },
+                paper_bgcolor: '#fbf8ee',
+                plot_bgcolor: '#fbf8ee',
                 xaxis: {
                     title: {
                         text: 'ทักษะที่ต้องการ',
                         font: {
                             size: 16,
-                            color: '#333'
+                            color: '#2a2517'
                         }
                     },
                     automargin: true,
@@ -373,7 +383,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         text: 'ผู้สมัคร',
                         font: {
                             size: 16,
-                            color: '#333'
+                            color: '#2a2517'
                         }
                     },
                     automargin: true
@@ -389,8 +399,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 autosize: true,
                 height: window.innerWidth < 768 ? 450 : 550, // ปรับขนาดตามหน้าจอ
                 font: {
-                    family: 'Arial, sans-serif',
-                    size: 14
+                    family: "'Sarabun', sans-serif",
+                    size: 14,
+                    color: '#2a2517'
                 },
             };
     
@@ -414,18 +425,16 @@ document.addEventListener('DOMContentLoaded', function() {
             const infoDiv = document.createElement('div');
             infoDiv.className = 'heatmap-info mt-3';
             infoDiv.innerHTML = `
-                <div class="card">
-                    <div class="card-body">
-                        <h6 class="card-title">คำอธิบายแผนภูมิ</h6>
-                        <p class="card-text">แผนภูมินี้แสดงทักษะของผู้สมัครแต่ละคนเทียบกับทักษะที่ต้องการ โดย:</p>
-                        <div class="d-flex align-items-center mb-2">
-                            <div class="heatmap-legend-color me-2" style="background-color: rgb(25, 118, 210);"></div>
-                            <span>หมายถึง ผู้สมัครมีทักษะนี้ (✓)</span>
-                        </div>
-                        <div class="d-flex align-items-center">
-                            <div class="heatmap-legend-color me-2" style="background-color: rgb(240, 240, 245);"></div>
-                            <span>หมายถึง ผู้สมัครไม่มีทักษะนี้</span>
-                        </div>
+                <div style="border:1px solid var(--rule); border-radius: var(--radius); background: var(--paper-raised); padding: 16px 20px;">
+                    <h6 style="font-family:'Noto Serif Thai', serif; margin-bottom:10px;">คำอธิบายแผนภูมิ</h6>
+                    <p style="font-size:0.9rem; color:var(--text-muted); margin-bottom:10px;">แผนภูมินี้แสดงทักษะของผู้สมัครแต่ละคนเทียบกับทักษะที่ต้องการ โดย:</p>
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="heatmap-legend-color me-2" style="background-color: #3f5d3f;"></div>
+                        <span style="font-size:0.88rem;">หมายถึง ผู้สมัครมีทักษะนี้ (✓)</span>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <div class="heatmap-legend-color me-2" style="background-color: #fbf8ee; border:1px solid var(--rule);"></div>
+                        <span style="font-size:0.88rem;">หมายถึง ผู้สมัครไม่มีทักษะนี้</span>
                     </div>
                 </div>
             `;
@@ -452,7 +461,7 @@ document.addEventListener('DOMContentLoaded', function() {
         .ranking-header {
             margin-bottom: 25px;
             padding-bottom: 15px;
-            border-bottom: 1px solid #dee2e6;
+            border-bottom: 1px solid var(--rule);
             text-align: center;
         }
         
@@ -468,36 +477,37 @@ document.addEventListener('DOMContentLoaded', function() {
             display: flex;
             align-items: center;
             gap: 8px;
+            font-size: 0.88rem;
+            color: var(--text-muted);
         }
         
         .legend-color {
-            width: 18px;
-            height: 18px;
-            border-radius: 4px;
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
         }
         
         .skill-color {
-            background-color: #4285F4;
+            background-color: var(--ochre);
         }
         
         .content-color {
-            background-color: #34A853;
+            background-color: var(--stamp-green);
         }
         
         .total-color {
-            background-color: #333;
+            background-color: var(--ink);
         }
         
         .ranking-item {
-            background-color: #fff;
-            padding: 22px;
-            border-radius: 10px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.08);
-            transition: all 0.3s ease;
-            border-left: 5px solid #ddd;
-            opacity: 1; /* เปลี่ยนจาก 0 เป็น 1 เพื่อให้แสดงทันที */
+            background-color: var(--paper-raised);
+            padding: 22px 24px;
+            border-radius: var(--radius);
+            border: 1px solid var(--rule);
+            transition: border-color 0.2s ease;
+            opacity: 1;
             transform: translateY(0);
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
         
         .ranking-item.show {
@@ -506,66 +516,74 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         .ranking-item:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border-color: var(--ochre);
         }
         
         .top-rank {
-            border-left: 5px solid #ffc107;
+            border-color: var(--ochre);
+            box-shadow: inset 3px 0 0 var(--ochre);
         }
         
         .rank-badge {
-            min-width: 45px;
-            height: 45px;
+            min-width: 44px;
+            height: 44px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            color: white;
-            font-size: 1.25rem;
-            box-shadow: 0 3px 6px rgba(0,0,0,0.16);
+            font-family: 'Noto Serif Thai', serif;
+            font-size: 1.1rem;
+            border: 2px solid var(--ink);
+            color: var(--ink);
+            background: transparent;
         }
         
         .badge-gold {
-            background: linear-gradient(135deg, #ffd700, #e6bc00);
+            border-color: var(--ochre);
+            color: var(--ochre);
         }
         
         .badge-silver {
-            background: linear-gradient(135deg, #C0C0C0, #A9A9A9);
+            border-color: var(--ink-soft);
+            color: var(--ink-soft);
         }
         
         .badge-bronze {
-            background: linear-gradient(135deg, #cd7f32, #a05a2c);
+            border-color: var(--stamp-red);
+            color: var(--stamp-red);
         }
         
         .badge-normal {
-            background: linear-gradient(135deg, #6c757d, #495057);
+            border-color: var(--text-muted);
+            color: var(--text-muted);
         }
         
         .bar-gold {
-            background: linear-gradient(135deg, #ffd700, #e6bc00);
+            background: var(--ochre);
         }
         
         .bar-silver {
-            background: linear-gradient(135deg, #C0C0C0, #A9A9A9);
+            background: var(--ink-soft);
         }
         
         .bar-bronze {
-            background: linear-gradient(135deg, #cd7f32, #a05a2c);
+            background: var(--stamp-red);
         }
         
         .bar-normal {
-            background: #6c757d;
+            background: var(--text-muted);
         }
         
         .total-score-display {
-            background-color: #f8f9fa;
-            padding: 8px 12px;
-            border-radius: 30px;
+            background-color: var(--paper);
+            padding: 7px 14px;
+            border-radius: 20px;
             font-size: 1rem;
-            border: 1px solid #e9ecef;
+            font-family: 'Noto Serif Thai', serif;
+            border: 1px solid var(--rule);
             white-space: nowrap;
+            color: var(--ink);
         }
         
         .scores-container {
@@ -575,46 +593,46 @@ document.addEventListener('DOMContentLoaded', function() {
         .score-label {
             font-weight: 500;
             margin-bottom: 4px;
-            color: #495057;
+            color: var(--text-muted);
+            font-size: 0.88rem;
         }
         
         .progress {
             margin-bottom: 15px;
-            border-radius: 6px;
+            border-radius: var(--radius);
             overflow: hidden;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            background-color: #e9ecef;
+            background-color: var(--paper);
+            border: 1px solid var(--rule);
         }
         
         .progress-label {
             margin-left: 10px;
             font-weight: 600;
-            text-shadow: 0 0 2px rgba(0,0,0,0.5);
-            font-size: 14px;
+            font-size: 13px;
+            font-variant-numeric: tabular-nums;
         }
         
         .skill-bar {
-            background-color: #4285F4;
+            background-color: var(--ochre);
         }
     
         .content-bar {
-            background-color: #34A853;
+            background-color: var(--stamp-green);
         }
     
         .total-bar {
-            background-color: #333;
+            background-color: var(--ink);
         }
         
         .chart-container {
             width: 100%;
             min-height: 500px;
             margin-bottom: 30px;
-            background-color: #fff;
-            border: 1px solid #eaeaea;
-            border-radius: 10px;
+            background-color: var(--paper-raised);
+            border: 1px solid var(--rule);
+            border-radius: var(--radius);
             position: relative;
             padding: 25px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.04);
             overflow: hidden;
         }
         
@@ -623,9 +641,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         .heatmap-legend-color {
-            width: 20px;
-            height: 20px;
-            border-radius: 4px;
+            width: 18px;
+            height: 18px;
+            border-radius: 3px;
         }
         
         .full-name {

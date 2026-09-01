@@ -1,0 +1,11 @@
+Flask==3.0.3
+Werkzeug==3.0.3
+pdfplumber==0.11.4
+nltk==3.8.1
+scikit-learn>=1.6
+pandas>=2.2.3
+numpy>=2.1
+matplotlib>=3.9.2
+seaborn>=0.13.2
+requests==2.32.3
+anthropic==0.34.2
